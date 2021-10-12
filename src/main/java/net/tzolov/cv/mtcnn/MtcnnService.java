@@ -106,10 +106,11 @@ public class MtcnnService {
 
 	private GraphRunner createGraphRunner(String tensorflowModelUri, String inputLabel) {
 		try {
+			ConfigProto cp = ConfigProto .newBuilder() .setInterOpParallelismThreads(4) .setAllowSoftPlacement(true) .setLogDevicePlacement(true) .build();
 			return new GraphRunner(
 					IOUtils.toByteArray(new DefaultResourceLoader().getResource(tensorflowModelUri).getInputStream()),
 					Arrays.asList(inputLabel),
-					ConfigProto.getDefaultInstance());
+					cp);
 		}
 		catch (IOException e) {
 			throw new IllegalStateException(String.format("Failed to load TF model [%s] and input [%s]:",

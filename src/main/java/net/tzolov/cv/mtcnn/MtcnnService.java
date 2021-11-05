@@ -64,9 +64,9 @@ public class MtcnnService {
 	//public static final String TF_ONET_MODEL_URI = "classpath:/model/onet_graph.proto";
 
 	// mtcnn models, frozen from the https://github.com/davidsandberg/facenet/tree/master/src/align project
-	public static final String TF_PNET_MODEL_URI = "classpath:/model2/pnet_graph.proto";
-	public static final String TF_RNET_MODEL_URI = "classpath:/model2/rnet_graph.proto";
-	public static final String TF_ONET_MODEL_URI = "classpath:/model2/onet_graph.proto";
+	public static final String TF_PNET_MODEL_URI = "model2/pnet_graph.proto";
+	public static final String TF_RNET_MODEL_URI = "model2/rnet_graph.proto";
+	public static final String TF_ONET_MODEL_URI = "model2/onet_graph.proto";
 
 	private final Java2DNativeImageLoader imageLoader;
 
@@ -108,7 +108,7 @@ public class MtcnnService {
 		try {
 			ConfigProto cp = ConfigProto .newBuilder() .setInterOpParallelismThreads(4) .setAllowSoftPlacement(true) .setLogDevicePlacement(true) .build();
 			return new GraphRunner(
-					IOUtils.toByteArray(new DefaultResourceLoader().getResource(tensorflowModelUri).getInputStream()),
+					IOUtils.toByteArray(getClass().getClassLoader().getResourceAsStream(tensorflowModelUri)),
 					Arrays.asList(inputLabel),
 					cp);
 		}

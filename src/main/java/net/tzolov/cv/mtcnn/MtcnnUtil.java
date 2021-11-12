@@ -24,23 +24,30 @@ import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferByte;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.FloatBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.Predicate;
 
 import javax.imageio.ImageIO;
 
+import org.apache.commons.io.IOUtils;
 import org.nd4j.linalg.api.buffer.DataBuffer;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.factory.Nd4j;
 import org.nd4j.linalg.indexing.INDArrayIndex;
 import org.nd4j.linalg.indexing.SpecifiedIndex;
 import org.nd4j.linalg.ops.transforms.Transforms;
-import org.nd4j.linalg.util.ArrayUtil;
+import org.nd4j.linalg.api.buffer.DataType;
+import org.nd4j.common.util.ArrayUtil;
+import org.nd4j.tensorflow.conversion.graphrunner.GraphRunner;
 import org.tensorflow.Tensor;
-
+import org.tensorflow.framework.ConfigProto;
 import org.springframework.util.Assert;
 import org.springframework.util.CollectionUtils;
 
@@ -216,10 +223,10 @@ public class MtcnnUtil {
 		// b4 = boundingbox[:, 3] + reg[:, 3] * h
 		INDArray w = boundingBox.get(all(), point(2)).sub(boundingBox.get(all(), point(0))).addi(1);
 		INDArray h = boundingBox.get(all(), point(3)).sub(boundingBox.get(all(), point(1))).addi(1);
-		INDArray b1 = boundingBox.get(all(), point(0)).add(reg.get(all(), point(0)).mul(w)).transpose();
-		INDArray b2 = boundingBox.get(all(), point(1)).add(reg.get(all(), point(1)).mul(h)).transpose();
-		INDArray b3 = boundingBox.get(all(), point(2)).add(reg.get(all(), point(2)).mul(w)).transpose();
-		INDArray b4 = boundingBox.get(all(), point(3)).add(reg.get(all(), point(3)).mul(h)).transpose();
+		INDArray b1 = boundingBox.get(all(), point(0)).add(reg.get(all(), point(0)).mul(w));
+		INDArray b2 = boundingBox.get(all(), point(1)).add(reg.get(all(), point(1)).mul(h));
+		INDArray b3 = boundingBox.get(all(), point(2)).add(reg.get(all(), point(2)).mul(w));
+		INDArray b4 = boundingBox.get(all(), point(3)).add(reg.get(all(), point(3)).mul(h));
 
 		// boundingbox[:, 0:4] = np.transpose(np.vstack([b1, b2, b3, b4]))
 		boundingBox.put(new INDArrayIndex[] { all(), interval(0, 4) }, Nd4j.vstack(b1, b2, b3, b4).transpose());
@@ -280,6 +287,7 @@ public class MtcnnUtil {
 		INDArray x2 = boxes.get(all(), point(2)).dup();
 		INDArray y2 = boxes.get(all(), point(3)).dup();
 		INDArray s = boxes.get(all(), point(4)).dup();
+		s = s.reshape(s.shape()[0], 1);
 
 		//area = (x2 - x1 + 1) * (y2 - y1 + 1)
 		INDArray area = (x2.sub(x1).add(1)).mul(y2.sub(y1).add(1));
@@ -299,7 +307,7 @@ public class MtcnnUtil {
 
 			long lastIndex = sortedS.size(0) - 1;
 			INDArray i = sortedS.get(point(lastIndex), all()); // last element
-			INDArray idx = sortedS.get(interval(0, lastIndex), all()).transpose(); // all until last excluding
+			INDArray idx = sortedS.get(interval(0, lastIndex), all()).ravel();//.transpose(); // all until last excluding
 			pick.put(counter++, i.dup());
 
 			INDArray xx1 = Transforms.max(x1.get(idx), x1.get(i).getInt(0));
@@ -330,7 +338,11 @@ public class MtcnnUtil {
 				break;
 			}
 
-			sortedS = Nd4j.expandDims(sortedS.get(oIdx), 0).transpose();
+			if (oIdx.length() == 1) {
+				oIdx = Nd4j.expandDims(oIdx, 0);
+			}
+
+			sortedS = sortedS.get(oIdx);//transpose();
 		}
 
 		//pick = pick[0:counter]
@@ -401,7 +413,8 @@ public class MtcnnUtil {
 			outReg = Nd4j.empty();
 		}
 
-		INDArray score = imap.get(yx).transpose();
+		INDArray score = imap.get(yx);
+		score = score.reshape( score.shape()[0], 1);
 
 		INDArray boundingBox = Nd4j.hstack(q1, q2, score, outReg);
 
@@ -435,7 +448,7 @@ public class MtcnnUtil {
 			}
 		}
 
-		return CollectionUtils.isEmpty(indexes) ? Nd4j.empty(DataBuffer.Type.FLOAT) : Nd4j.create(indexes);
+		return CollectionUtils.isEmpty(indexes) ? Nd4j.empty(DataType.FLOAT) : Nd4j.create(indexes);
 	}
 
 	/**
@@ -721,6 +734,25 @@ public class MtcnnUtil {
 	private static BufferedImage toBufferedImage(byte[] image) throws IOException {
 		try (ByteArrayInputStream is = new ByteArrayInputStream(image)) {
 			return ImageIO.read(is);
+		}
+	}
+
+	public static GraphRunner createGraphRunner(InputStream cls, String inputLabel, List<String> outputs) {
+		try {
+			ConfigProto cp = ConfigProto.newBuilder().setInterOpParallelismThreads(4).setAllowSoftPlacement(true).setLogDevicePlacement(true).build();
+            byte[] data = IOUtils.toByteArray(cls);
+			return GraphRunner.builder().graphBytes(
+                        data
+                    ).inputNames(
+					Arrays.asList(inputLabel)
+                    ).sessionOptionsConfigProto(cp)
+                    .outputNames(outputs)
+                    .build();
+					//cp);
+		}
+		catch (IOException e) {
+			throw new IllegalStateException(String.format("Failed to load TF model and input [%s]:",
+					inputLabel), e);
 		}
 	}
 }

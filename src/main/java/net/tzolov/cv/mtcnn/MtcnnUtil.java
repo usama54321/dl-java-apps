@@ -737,6 +737,24 @@ public class MtcnnUtil {
 		}
 	}
 
+    public static GraphRunner createGraphRunner(InputStream cls, List<String> inputLabel, List<String> outputs) {
+		try {
+			ConfigProto cp = ConfigProto.newBuilder().setInterOpParallelismThreads(4).setAllowSoftPlacement(true).setLogDevicePlacement(true).build();
+            byte[] data = IOUtils.toByteArray(cls);
+			return GraphRunner.builder().graphBytes(
+                        data
+                    ).inputNames(
+					inputLabel
+                    ).sessionOptionsConfigProto(cp)
+                    .outputNames(outputs)
+                    .build();
+					//cp);
+		}
+		catch (IOException e) {
+			throw new IllegalStateException(String.format("Failed to load TF model and input [%s]:",
+					inputLabel), e);
+		}
+	}
 	public static GraphRunner createGraphRunner(InputStream cls, String inputLabel, List<String> outputs) {
 		try {
 			ConfigProto cp = ConfigProto.newBuilder().setInterOpParallelismThreads(4).setAllowSoftPlacement(true).setLogDevicePlacement(true).build();

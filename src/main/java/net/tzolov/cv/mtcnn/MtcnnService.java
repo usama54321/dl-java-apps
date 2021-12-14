@@ -120,7 +120,7 @@ public class MtcnnService {
 	}
 
 	public FaceAnnotation[] faceDetection(BufferedImage bImage) throws IOException {
-		INDArray ndImage3HW = this.imageLoader.asMatrix(bImage).get(point(0), all(), all(), all());
+		INDArray ndImage3HW = this.imageLoader.asMatrix(bImage).get(point(0), interval(0,3), all(), all());
 		return faceDetection(ndImage3HW);
 	}
 

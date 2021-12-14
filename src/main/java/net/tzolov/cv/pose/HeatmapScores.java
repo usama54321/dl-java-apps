@@ -27,7 +27,7 @@ public class HeatmapScores {
     }
 
     public float getScore(int partId, int x, int y) {
-        return scores.getFloat(partId, x, y);
+        return scores.getFloat(0, y, x, partId);
     }
 
     public int getNumKeypoints() {

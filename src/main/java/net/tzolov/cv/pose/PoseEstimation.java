@@ -1,13 +1,13 @@
 package net.tzolov.cv.pose;
 
 import static org.nd4j.linalg.indexing.NDArrayIndex.all;
+import static org.nd4j.linalg.indexing.NDArrayIndex.interval;
 import static org.nd4j.linalg.indexing.NDArrayIndex.point;
 
+import java.awt.Dimension;
 import java.awt.Graphics2D;
 import java.awt.Image;
 import java.awt.image.BufferedImage;
-import java.awt.Dimension;
-import java.awt.Graphics;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -19,76 +19,133 @@ import java.util.Map;
 import javax.imageio.ImageIO;
 
 import org.datavec.image.loader.Java2DNativeImageLoader;
+import org.nd4j.autodiff.samediff.SameDiff;
 import org.nd4j.linalg.api.buffer.DataType;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.factory.Nd4j;
 import org.nd4j.linalg.ops.transforms.Transforms;
 import org.nd4j.tensorflow.conversion.graphrunner.GraphRunner;
 
-import java.awt.Canvas;
+import org.bytedeco.javacpp.*;
+import org.bytedeco.tensorflowlite.global.tensorflowlite.*;
+import org.bytedeco.tensorflowlite.global.tensorflowlite;
+import org.bytedeco.tensorflowlite.*;
+import org.bytedeco.tensorflowlite.Interpreter;
+
 import net.tzolov.cv.mtcnn.MtcnnService;
 import net.tzolov.cv.mtcnn.MtcnnUtil;
 
+import org.opencv.core.CvType;
+
 public class PoseEstimation {
     public static final String TF_MODEL = "posenet/model.pb";
-    private static String INPUT_NAME = "image";
-    private static String HEATMAP = "MobilenetV1/heatmap_2/BiasAdd:0";
+    public static final String TFLITE_MODEL = "/home/usama/ml_system/java-app/mtcnn-java/src/main/resources/posenet/model.tflite";
+    private FlatBufferModel tfliteModel;
+    private Interpreter interpreter;
+
+    private static String INPUT_NAME = "image";//"image";
+    private static String HEATMAP = "Openpose/concat_stage7:0";// "MobilenetV1/heatmap_2/BiasAdd:0";
     private static String OFFSET = "MobilenetV1/offset_2/BiasAdd:0";
     private static String DISP_FORWARD = "MobilenetV1/displacement_fwd_2/BiasAdd:0";
     private static String DISP_BACKWARD = "MobilenetV1/displacement_bwd_2/BiasAdd:0";
 
-    private final GraphRunner modelRunner;
-    private final Java2DNativeImageLoader imageLoader;
+    public PoseEstimation() {
+        tfliteModel = FlatBufferModel.BuildFromFile(TFLITE_MODEL);
+        TFLITE_MINIMAL_CHECK(tfliteModel != null && !tfliteModel.isNull());
+        BuiltinOpResolver resolver = new BuiltinOpResolver();
+        InterpreterBuilder builder = new InterpreterBuilder(tfliteModel, resolver);
+        interpreter = new Interpreter((Pointer)null);
 
-    public static void main(String[] args) {
-        try {
-            new PoseEstimation().test1();
-        }catch (Exception e) {
-            e.printStackTrace();
-        }
+        builder.apply(interpreter);
+        TFLITE_MINIMAL_CHECK(interpreter != null && !interpreter.isNull());
+
+        TFLITE_MINIMAL_CHECK(interpreter.AllocateTensors() == tensorflowlite.kTfLiteOk);
     }
 
-    void test1() throws IOException {
-        String image = "/home/usama/ml_system/pose2.jpg";
-        BufferedImage img = ImageIO.read(new File(image));
-        Map<String, INDArray> data = poseDetection(img);
+    static void TFLITE_MINIMAL_CHECK(boolean x) {
+      if (!x) {
+        System.err.print("Error at ");
+        Thread.dumpStack();
+        System.exit(1);
+      }
+    }
 
-        INDArray rawHeatmaps = data.get(HEATMAP);
-        INDArray rawOffsets = data.get(OFFSET);
+    public PoseResult poseDetection(BufferedImage img) throws IOException {
+        //System.out.println("resizing image");
+        BufferedImage copy = resizeImage(img, img.getWidth(), img.getHeight());
+
+        img = Rotation.CLOCKWISE_90.rotate(img);
+        img = resizeImage(img, 353, 257);
+
+        TfLiteTensor inputImage = interpreter.input_tensor(0);
+        TfLiteIntArray arr = interpreter.input_tensor(0).dims();
+
+        FloatPointer p = interpreter.typed_input_tensor_float(0);
+
+        int index = 0;
+        int W = 353;
+        int H = 257;
+        int CHANNELS = 3;
+        //[W][H][C]
+        for(int i = 0; i < W; i++) {
+            for(int j = 0; j < H; j++) {
+                int rgb = img.getRGB(i, j);
+                float r = (((rgb >> 16)  & 0xFF) - 128.f)/255.f;
+                float g = (((rgb >> 8) & 0xFF) - 128.f)/255.f;
+                float b = ((rgb & 0xFF) - 128.f)/255.f;
+                p.put((H * CHANNELS * i) + (CHANNELS * j) + 0, r);
+                p.put((H * CHANNELS * i) + (CHANNELS * j) + 1, g);
+                p.put((H * CHANNELS * i) + (CHANNELS * j) + 2, b);
+            }
+        }
+
+        TFLITE_MINIMAL_CHECK(interpreter.Invoke() == tensorflowlite.kTfLiteOk);
+
+        TfLiteTensor data1 = interpreter.output_tensor(0);
+        TfLiteTensor data2 = interpreter.output_tensor(1);
+        TfLiteTensor data3 = interpreter.output_tensor(2);
+        TfLiteTensor data4 = interpreter.output_tensor(3);
+
+        TfLiteTensor[] t = {data1, data2, data3, data4};
+
+        FloatPointer hmTensor = interpreter.typed_output_tensor_float(0);
+        FloatPointer ofTensor = interpreter.typed_output_tensor_float(1);
+        FloatPointer disp1Tensor = interpreter.typed_output_tensor_float(2);
+        FloatPointer disp2Tensor = interpreter.typed_output_tensor_float(3);
+
+        float hm[] = new float[1 * 45 * 33 * 17];
+        float of[] = new float[1 * 45 * 33 * 34];
+        float disp1[] = new float[1*45*33*32];
+        float disp2[] = new float[1*45*33*32];
+
+        hmTensor.get(hm, 0, hm.length);
+        ofTensor.get(of, 0, of.length);
+        disp1Tensor.get(disp1, 0, disp1.length);
+        disp2Tensor.get(disp2, 0, disp2.length);
+
+        INDArray rawHeatmaps = Nd4j.create(hm, new int[]{1, 45, 33, 17}); //data.get(HEATMAP);
+        INDArray rawOffsets = Nd4j.create(of, new int[]{1, 45, 33, 34}); //data.get(OFFSET);
+
         Skeleton skeleton = new HumanSkeleton();
 
-        //[1, w, h, num_keypoints] -> [w, h, num_keypoints] -> [num_keypoints, w, h]
-        MtcnnService.lg("rawOffsets", rawOffsets);
-        MtcnnService.lg("rawHeatmaps", rawHeatmaps);
-        rawHeatmaps = rawHeatmaps.get(point(0), all(), all(), all());//.permute(2,0,1);
-        rawHeatmaps = Transforms.sigmoid(rawHeatmaps);
-        MtcnnService.lg("rawHeatmaps", rawHeatmaps);
-        rawOffsets = rawOffsets.get(point(0), all(), all(), all());//.permute(2,0,1);
-        long width = rawHeatmaps.shape()[1];
-        long height = rawHeatmaps.shape()[2];
-        float minPartThreshold = 0.5f;
+        long width = rawHeatmaps.shape()[2]; //33
+        long height = rawHeatmaps.shape()[1]; //45
+        float minPartThreshold = 0.3f;
         Dimension outputGridSize = new Dimension((int) width, (int) height);
-        Dimension inputSize = new Dimension(img.getWidth(), img.getHeight());
+        Dimension inputSize = new Dimension(257, 353);
 
-        HeatmapScores heatmapScores = new HeatmapScores(rawHeatmaps, (int) height, (int) width, skeleton.getNumKeypoints());
-        Offsets offsets = new Offsets(rawOffsets, (int) height, (int) width, skeleton.getNumKeypoints());
 
-        List<Pose> poses = new ArrayList<>();
+        HeatmapScores heatmapScores = new HeatmapScores(rawHeatmaps, (int) outputGridSize.height, (int) outputGridSize.width, skeleton.getNumKeypoints());
+        Offsets offsets = new Offsets(rawOffsets, (int) outputGridSize.height, (int) outputGridSize.width, skeleton.getNumKeypoints());
 
         PoseDecoder poseDecoder = new PoseDecoder(heatmapScores, offsets, outputGridSize, inputSize, minPartThreshold, skeleton);
 
         Pose pose = poseDecoder.decodePose();
-
-        if (pose != null) {
-            poses.add(pose);
-        }
-
-        Graphics2D g = img.createGraphics();
-        pose.draw(g, true, img.getWidth(), img.getHeight());
-        ImageIO.write(img, "jpeg", new File("/home/usama/ml_system/java-app/mtcnn-java/test.jpeg"));
+        PoseResult res = new PoseResult(Arrays.asList(pose), 0.2f);
+        return res;
     }
 
-    private static BufferedImage resizeImage(BufferedImage img, int width, int height) {
+    public static BufferedImage resizeImage(BufferedImage img, int width, int height) {
         Image image = img.getScaledInstance(width, height, Image.SCALE_SMOOTH);
         BufferedImage resized = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
 
@@ -97,24 +154,5 @@ public class PoseEstimation {
         g2d.dispose();
 
         return resized;
-    }
-
-    public PoseEstimation() {
-        modelRunner = MtcnnUtil.createGraphRunner(
-                getClass().getClassLoader().getResourceAsStream(TF_MODEL),
-                PoseEstimation.INPUT_NAME,
-                Arrays.asList(HEATMAP, OFFSET, DISP_FORWARD, DISP_BACKWARD)
-                );
-        imageLoader = new Java2DNativeImageLoader();
-    }
-
-    public Map<String, INDArray> poseDetection(INDArray img) {
-        return this.modelRunner.run(Collections.singletonMap(PoseEstimation.INPUT_NAME, img));
-    }
-
-    public Map<String, INDArray> poseDetection(BufferedImage img) throws IOException {
-        INDArray ndImage3HW = this.imageLoader.asMatrix(img).get(all(), all(), all(), all()).permutei(0,3,2,1);
-        MtcnnService.lg("ndImage3HW", ndImage3HW);
-		return poseDetection(ndImage3HW);
     }
 }

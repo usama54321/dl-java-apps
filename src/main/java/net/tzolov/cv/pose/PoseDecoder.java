@@ -58,7 +58,7 @@ public class PoseDecoder {
             // Custom models stack offset values as [X, Y] which is the opposite of the pretrained
             // model. For now, all custom pose models use single pose decoding so we can assume
             // all are stacked with X first.
-            Point2D.Float offsetPoint = offsets.getOffsetPoint(partId, col, row, false);
+            Point2D.Float offsetPoint = offsets.getOffsetPoint(partId, col, row, true);
 
             float xLoc = col * scaleX + offsetPoint.x;
             float yLoc = row * scaleY + offsetPoint.y;

@@ -123,16 +123,16 @@ public class Pose {
         Keypoint[] updatedKeypoints = scaleKeypoints(keypoints, width, height);
 
         for (Keypoint keypoint : updatedKeypoints) {
-            graphics.drawOval((int) keypoint.getPosition().x, (int) keypoint.getPosition().y, 10, 10);
-
-            //canvas.drawCircle(.x, keypoint.getPosition().y, 5, DrawingUtils.DEFAULT_PAINT);
+            if(keypoint.getScore() >= 0.2f) {
+                graphics.drawOval(Math.round(keypoint.getPosition().x), Math.round(keypoint.getPosition().y), 10, 10);
+            }
         }
         if (connectParts) {
 
             for (Pair<Keypoint, Keypoint> connectedKeypoints : getConnectedKeypoints(updatedKeypoints)) {
                 Keypoint left = connectedKeypoints.getLeft();
                 Keypoint right = connectedKeypoints.getRight();
-                graphics.drawLine((int) left.getPosition().x, (int) left.getPosition().y, (int) right.getPosition().x, (int) right.getPosition().y);
+                graphics.drawLine(Math.round(left.getPosition().x), Math.round(left.getPosition().y), Math.round(right.getPosition().x), Math.round(right.getPosition().y));
             }
         }
     }

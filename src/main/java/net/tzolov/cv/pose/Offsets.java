@@ -37,16 +37,16 @@ public class Offsets {
 
     public float getOffsetY(int partId, int x, int y) {
         //return rawOffsets.getFloat(4 * (y * width * numParts * 2 + x * numParts * 2 + partId));
-        return rawOffsets.getFloat(partId, x, y);
+        return rawOffsets.getFloat(0, y, x, partId);
     }
 
     public float getOffsetX(int partId, int x, int y) {
-        return rawOffsets.getFloat(partId, x, y);
+        return rawOffsets.getFloat(0, y, x, partId + numParts);
     }
 
     public Point2D.Float getOffsetPoint(int partId, int x, int y, boolean xFirst) {
         float offsetX = getOffsetX(partId, x, y);
-        float offsetY = getOffsetY(numParts + partId, x, y);
+        float offsetY = getOffsetY(partId, x, y);
         // If the offset matrix is stacked to be read [X, Y], switch the output order.
         if (xFirst) {
             return new Point2D.Float(offsetY, offsetX);

@@ -43,8 +43,6 @@ import static org.nd4j.linalg.indexing.NDArrayIndex.interval;
 
 
 public class ImageDetector {
-    private static final String MODEL_FILE = "/home/usama/ml_system/java-app/mtcnn-java/src/main/resources/cropper/hed_lite_model_quantize.tflite";
-
     public static int desiredSize = 256;
     private float THRESHOLD = 0.0f;
 

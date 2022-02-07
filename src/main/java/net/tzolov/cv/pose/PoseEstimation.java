@@ -39,7 +39,7 @@ import org.opencv.core.CvType;
 
 public class PoseEstimation {
     public static final String TF_MODEL = "posenet/model.pb";
-    public static final String TFLITE_MODEL = "/home/usama/ml_system/java-app/mtcnn-java/src/main/resources/posenet/model.tflite";
+    public static final String TFLITE_MODEL = "posenet/model.tflite";
     private FlatBufferModel tfliteModel;
     private Interpreter interpreter;
 
@@ -50,7 +50,8 @@ public class PoseEstimation {
     private static String DISP_BACKWARD = "MobilenetV1/displacement_bwd_2/BiasAdd:0";
 
     public PoseEstimation() {
-        tfliteModel = FlatBufferModel.BuildFromFile(TFLITE_MODEL);
+        String model = getClass().getClassLoader().getResource(TFLITE_MODEL).getFile();
+        tfliteModel = FlatBufferModel.BuildFromFile(model);
         TFLITE_MINIMAL_CHECK(tfliteModel != null && !tfliteModel.isNull());
         BuiltinOpResolver resolver = new BuiltinOpResolver();
         InterpreterBuilder builder = new InterpreterBuilder(tfliteModel, resolver);

@@ -65,9 +65,9 @@ public class MtcnnService {
 	//public static final String TF_ONET_MODEL_URI = "classpath:/model/onet_graph.proto";
 
 	// mtcnn models, frozen from the https://github.com/davidsandberg/facenet/tree/master/src/align project
-	public static final String TF_PNET_MODEL_URI = "model2/pnet_graph.proto";
-	public static final String TF_RNET_MODEL_URI = "model2/rnet_graph.proto";
-	public static final String TF_ONET_MODEL_URI = "model2/onet_graph.proto";
+	public static final String TF_PNET_MODEL_URI = "mtcnn/pnet_graph.proto";
+	public static final String TF_RNET_MODEL_URI = "mtcnn/rnet_graph.proto";
+	public static final String TF_ONET_MODEL_URI = "mtcnn/onet_graph.proto";
 
 	private final Java2DNativeImageLoader imageLoader;
 

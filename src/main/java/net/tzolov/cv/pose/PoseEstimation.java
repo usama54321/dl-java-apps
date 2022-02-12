@@ -39,7 +39,7 @@ import org.opencv.core.CvType;
 
 public class PoseEstimation {
     public static final String TF_MODEL = "posenet/model.pb";
-    public static final String TFLITE_MODEL = "posenet/model.tflite";
+    public static final String TFLITE_MODEL = "/posenet/model.tflite";
     private FlatBufferModel tfliteModel;
     private Interpreter interpreter;
 
